@@ -1,4 +1,0 @@
-/home/maria/Рабочий стол/project_root/build/CMakeFiles/server.dir
-/home/maria/Рабочий стол/project_root/build/CMakeFiles/client.dir
-/home/maria/Рабочий стол/project_root/build/CMakeFiles/edit_cache.dir
-/home/maria/Рабочий стол/project_root/build/CMakeFiles/rebuild_cache.dir
