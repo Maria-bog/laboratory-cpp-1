@@ -1,0 +1,10 @@
+build/
+*.o
+*.a
+*.so
+*.out
+/client
+/server
+.vscode/
+.idea/
+.DS_Store
