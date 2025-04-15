@@ -59,30 +59,29 @@ void Server::handleClient(int client_socket) {
         }
         buffer[received] = '\0';
         std::istringstream iss(buffer);
-        std::string name, key;
-        iss >> name >> key;
+        std::string name, key, pas;
+        iss >> name >> key >> pas;
+
 
         std::unique_ptr<Client> client;
 
-        if (name == "admin" && key == admin_pass) {
-            client = std::make_unique<Client>(client_socket, name, key, true);
-            std::cout << "[SERVER] Admin connected." << std::endl;
+        if (pas == admin_pass) {
+            client = std::make_unique<Client>(client_socket, name, key, pas, true);
+            std::cout << "[SERVER] Admin " << name << " connected." << std::endl;
         } else {
-            client = std::make_unique<Client>(client_socket, name, key);
+            client = std::make_unique<Client>(client_socket, name, key, pas);
             std::cout << "[SERVER] " << name << " connected." << std::endl;
         }
-
+        
 
         {
             std::lock_guard<std::mutex> lock(mtx);
             clients[name] = std::move(client);
         }
 
-        std::cout << "[SERVER] " << name << " connected" << std::endl;
-
         while (true) {
             std::string message = clients[name]->receive();
-            if (message.empty()) break;
+            if (message.empty() || clients[name]->isKicked()) break;  // Если клиент кикнут, завершаем соединение
 
             if (message[0] == '/') {
                 processCommand(clients[name].get(), message);
@@ -91,8 +90,7 @@ void Server::handleClient(int client_socket) {
                     std::lock_guard<std::mutex> lock(mtx);
                     for (auto& [other_name, other_client] : clients) {
                         if (other_name != name) {
-                
-                            other_client->send(name + ": " + message);  
+                            other_client->send(name + ": " + message);
                         }
                     }
                 };
@@ -124,10 +122,11 @@ void Server::processCommand(Client* sender, const std::string& cmd) {
 
         if (password == admin_pass) {
             std::lock_guard<std::mutex> lock(mtx);
-            clients[name] = std::make_unique<Client>(sender->getSocket(), name, sender->getKey(), true);
+            clients[name] = std::make_unique<Client>(sender->getSocket(), name, sender->getKey(), sender->getPas(), true);
+            
             sender->send("Admin registered successfully.");
         } else {
-            sender->send("");
+            sender->send("Incorrect password.");
         }
     } else if (command == "/kick") {
         if (!sender->isAdmin()) {
@@ -142,12 +141,35 @@ void Server::processCommand(Client* sender, const std::string& cmd) {
         auto it = clients.find(target_name);
         if (it != clients.end()) {
             it->second->send("You have been kicked by admin.");
+            it->second->kick();  // Кикаем клиента
+            shutdown(it->second->getSocket(), SHUT_RDWR); // Закрываем сокет
             close(it->second->getSocket());
             clients.erase(it);
         } else {
             sender->send("User not found.");
         }
-    } else {
+    }
+    else if (command == "/m") {
+        std::string target_name;
+        iss >> target_name;
+        std::string message;
+        std::getline(iss, message);
+        if (message.empty()) {
+            sender->send("Usage: /m <username> <message>");
+            return;
+        }
+    
+        std::lock_guard<std::mutex> lock(mtx);
+        auto it = clients.find(target_name);
+        if (it != clients.end()) {
+            std::string full_message = "[Private] " + sender->getName() + ": " + message;
+            it->second->send(full_message);
+            sender->send("Message sent to " + target_name);
+        } else {
+            sender->send("User not found.");
+        }
+    }else {
         sender->send("Unknown command.");
     }
+    
 }

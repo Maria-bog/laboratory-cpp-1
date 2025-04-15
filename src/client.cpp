@@ -7,8 +7,8 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 
-Client::Client(int socket, const std::string& name, const std::string& key, bool is_admin)
-    : socket(socket), name(name), key(key), admin(is_admin), connect(true) {}
+Client::Client(int socket, const std::string& name, const std::string& key, const std::string& pas, bool is_admin)
+    : socket(socket), name(name), key(key), pas(pas), admin(is_admin), connect(true) {}
 
 void Client::send(const std::string& mess) const {
     std::string encrypted = encrypt(mess, key);
@@ -22,10 +22,22 @@ std::string Client::receive() const {
     return decrypt(std::string(buffer), key);
 }
 
+
 void Client::disconnect() {
-    connect = false;
-    close(socket);
+    if (socket != -1) {
+        close(socket);
+        socket= -1;
+    }
 }
+
+bool Client::isKicked() const {
+    return is_kicked;
+}
+
+void Client::kick() {
+    is_kicked = true;
+}
+
 
 std::string Client::encrypt(const std::string& text, const std::string& key) {
     std::string res = text;

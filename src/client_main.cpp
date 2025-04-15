@@ -29,15 +29,20 @@ int main() {
     }
     
 
-    std::string name, key;
+    std::string name, key, pas;
     std::cout << "Enter your name: ";
     std::getline(std::cin, name);
     std::cout << "Enter encryption key: ";
     std::getline(std::cin, key);
+    std::cout << "Enter password: ";
+    std::getline(std::cin, pas);
 
-    send(sock, (name + " " + key).c_str(), name.length() + 1 + key.length(), 0);
+    std::string auth_info = name + " " + key + " " + pas;
+    send(sock, auth_info.c_str(), auth_info.length(), 0);
 
-    Client client(sock, name, key);
+
+    Client client(sock, name, key, pas);
+
 
     std::thread listener([&client]() {
         while (client.isConnected()) {
