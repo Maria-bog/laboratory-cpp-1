@@ -29,33 +29,55 @@ void Client::connectToServer() {
     if (socket_ < 0) {
         std::cerr << "Socket creation error\n";
         // Handle error
+        return; // Важно: выйдите из функции, если сокет не создан
     }
 
     sockaddr_in serverAddress;
     serverAddress.sin_family = AF_INET;
     serverAddress.sin_port = htons(port_);
 
-    if (inet_pton(AF_INET, serverAddress_.c_str(), &serverAddress.sin_addr) <= 0) {
-        std::cerr << "Invalid address\n";
-        // Handle error
-        #ifdef _WIN32
+    #ifdef _WIN32
+        // Инициализируем Winsock (если еще не инициализировали где-то раньше - лучше вынести в конструктор Client)
+        WSADATA wsaData;
+        int iResult = WSAStartup(MAKEWORD(2, 2), &wsaData);
+        if (iResult != 0) {
+            std::cerr << "WSAStartup failed: " << iResult << std::endl;
             closesocket(socket_);
-        #else
+            return;
+        }
+
+        if (WSAStringToAddressA((LPSTR)serverAddress_.c_str(), AF_INET, NULL, (SOCKADDR*)&serverAddress, (int*)sizeof(serverAddress)) != 0) {
+            std::cerr << "Invalid address (WSAStringToAddress): " << WSAGetLastError() << std::endl;
+            closesocket(socket_);
+            WSACleanup();
+            return;
+        }
+
+
+    #else
+        if (inet_pton(AF_INET, serverAddress_.c_str(), &serverAddress.sin_addr) <= 0) {
+            std::cerr << "Invalid address\n";
             close(socket_);
-        #endif
-    }
+            return;
+        }
+    #endif
 
     if (connect(socket_, (struct sockaddr*)&serverAddress, sizeof(serverAddress)) < 0) {
         std::cerr << "Connection failed\n";
-        // Handle error
         #ifdef _WIN32
             closesocket(socket_);
+            WSACleanup();
         #else
             close(socket_);
         #endif
+        return;
     }
 
     std::cout << "Connected to server\n";
+
+    #ifdef _WIN32
+      WSACleanup(); // Очищаем Winsock, когда он больше не нужен
+    #endif
 }
 
 void Client::communicateWithServer() {
