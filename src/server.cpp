@@ -1,12 +1,24 @@
 #include "../include/server.hpp"
-#include "../include/client.hpp"
 #include <iostream>
 #include <sstream>
+
+#ifdef _WIN32
+#include <winsock2.h>
+#pragma comment(lib, "ws2_32.lib")
+#else
 #include <unistd.h>
 #include <netinet/in.h>
 #include <cstring>
+#endif
 
 Server::Server() {
+#ifdef _WIN32
+    WSADATA wsaData;
+    if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0) {
+        throw std::runtime_error("WSAStartup failed.");
+    }
+#endif
+
     server_socket = socket(AF_INET, SOCK_STREAM, 0);
     if (server_socket == -1) {
         throw std::runtime_error("Failed to create socket.");
@@ -15,6 +27,9 @@ Server::Server() {
 
 Server::~Server() {
     stop();
+#ifdef _WIN32
+    WSACleanup();
+#endif
 }
 
 void Server::start(int port) {
@@ -23,7 +38,6 @@ void Server::start(int port) {
     server_addr.sin_port = htons(port);
     server_addr.sin_addr.s_addr = INADDR_ANY;
     
-    //Привязка сокета к адресу и порту
     if (bind(server_socket, (sockaddr*)&server_addr, sizeof(server_addr)) < 0) {
         throw std::runtime_error("Failed to bind socket.");
     }
@@ -43,25 +57,35 @@ void Server::start(int port) {
 }
 
 void Server::stop() {
+#ifdef _WIN32
+    closesocket(server_socket);
+#else
     close(server_socket);
+#endif
     std::lock_guard<std::mutex> lock(mtx);
     clients.clear();
 }
 
 void Server::handleClient(int client_socket) {
     try {
-        // Чтение имени и ключа
         char buffer[1024];
+#ifdef _WIN32
+        int received = recv(client_socket, buffer, sizeof(buffer) - 1, 0);
+#else
         ssize_t received = recv(client_socket, buffer, sizeof(buffer) - 1, 0);
+#endif
         if (received <= 0) {
+#ifdef _WIN32
+            closesocket(client_socket);
+#else
             close(client_socket);
+#endif
             return;
         }
         buffer[received] = '\0';
         std::istringstream iss(buffer);
         std::string name, key, pas;
         iss >> name >> key >> pas;
-
 
         std::unique_ptr<Client> client;
 
@@ -72,7 +96,6 @@ void Server::handleClient(int client_socket) {
             client = std::make_unique<Client>(client_socket, name, key, pas);
             std::cout << "[SERVER] " << name << " connected." << std::endl;
         }
-        
 
         {
             std::lock_guard<std::mutex> lock(mtx);
@@ -81,7 +104,7 @@ void Server::handleClient(int client_socket) {
 
         while (true) {
             std::string message = clients[name]->receive();
-            if (message.empty() || clients[name]->isKicked()) break;  // Если клиент кикнут, завершаем соединение
+            if (message.empty() || clients[name]->isKicked()) break;
 
             if (message[0] == '/') {
                 processCommand(clients[name].get(), message);
@@ -108,7 +131,11 @@ void Server::handleClient(int client_socket) {
             break;
         }
     }
+#ifdef _WIN32
+    closesocket(client_socket);
+#else
     close(client_socket);
+#endif
 }
 
 void Server::processCommand(Client* sender, const std::string& cmd) {
@@ -123,7 +150,6 @@ void Server::processCommand(Client* sender, const std::string& cmd) {
         if (password == admin_pass) {
             std::lock_guard<std::mutex> lock(mtx);
             clients[name] = std::make_unique<Client>(sender->getSocket(), name, sender->getKey(), sender->getPas(), true);
-            
             sender->send("Admin registered successfully.");
         } else {
             sender->send("Incorrect password.");
@@ -141,15 +167,19 @@ void Server::processCommand(Client* sender, const std::string& cmd) {
         auto it = clients.find(target_name);
         if (it != clients.end()) {
             it->second->send("You have been kicked by admin.");
-            it->second->kick();  // Кикаем клиента
-            shutdown(it->second->getSocket(), SHUT_RDWR); // Закрываем сокет
+            it->second->kick();
+#ifdef _WIN32
+            shutdown(it->second->getSocket(), SD_BOTH);
+            closesocket(it->second->getSocket());
+#else
+            shutdown(it->second->getSocket(), SHUT_RDWR);
             close(it->second->getSocket());
+#endif
             clients.erase(it);
         } else {
             sender->send("User not found.");
         }
-    }
-    else if (command == "/m") {
+    } else if (command == "/m") {
         std::string target_name;
         iss >> target_name;
         std::string message;
@@ -168,8 +198,7 @@ void Server::processCommand(Client* sender, const std::string& cmd) {
         } else {
             sender->send("User not found.");
         }
-    }else {
+    } else {
         sender->send("Unknown command.");
     }
-    
 }

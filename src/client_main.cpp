@@ -1,12 +1,26 @@
 #include "../include/client.hpp"
 #include <iostream>
 #include <thread>
+
+#ifdef _WIN32
+#include <winsock2.h>
+#pragma comment(lib, "ws2_32.lib")
+#else
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <unistd.h>
 #include <cstring>
+#endif
 
 int main() {
+#ifdef _WIN32
+    WSADATA wsaData;
+    if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0) {
+        std::cerr << "WSAStartup failed.\n";
+        return -1;
+    }
+#endif
+
     int sock = socket(AF_INET, SOCK_STREAM, 0);
     if (sock < 0) {
         std::cerr << "Socket creation error\n";
@@ -24,10 +38,14 @@ int main() {
 
     if (connect(sock, (sockaddr*)&serv_addr, sizeof(serv_addr)) < 0) {
         std::cerr << "Connection failed\n";
+#ifdef _WIN32
+        closesocket(sock);
+        WSACleanup();
+#else
         close(sock);
+#endif
         return -1;
     }
-    
 
     std::string name, key, pas;
     std::cout << "Enter your name: ";
@@ -40,9 +58,7 @@ int main() {
     std::string auth_info = name + " " + key + " " + pas;
     send(sock, auth_info.c_str(), auth_info.length(), 0);
 
-
     Client client(sock, name, key, pas);
-
 
     std::thread listener([&client]() {
         while (client.isConnected()) {
@@ -62,5 +78,12 @@ int main() {
     }
 
     listener.join();
+
+#ifdef _WIN32
+    closesocket(sock);
+    WSACleanup();
+#else
+    close(sock);
+#endif
     return 0;
 }

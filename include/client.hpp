@@ -1,6 +1,15 @@
 #pragma once
 #include <string>
 
+#ifdef _WIN32
+#include <winsock2.h>
+#else
+#include <unistd.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+#endif
+
 class Client {
 protected:
     int socket;

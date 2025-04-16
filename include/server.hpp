@@ -1,9 +1,18 @@
 #pragma once
-#include <unordered_map> //ля использования хеш-таблицы клиентов
+#include <unordered_map>
 #include <memory>
 #include <mutex>
 #include <thread>
 #include "client.hpp"
+
+#ifdef _WIN32
+#include <winsock2.h>
+#else
+#include <unistd.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+#endif
 
 class Server {
 private:
