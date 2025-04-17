@@ -124,3 +124,5 @@ void Client::run() {
     connectToServer();
     communicateWithServer();
 }
+
+//g++ -Wall -Wextra -Werror -std=c++17 client_main.cpp client.cpp -o client -lws2_32
