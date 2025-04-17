@@ -44,3 +44,14 @@ public:
     bool isConnected() const { return connect; }
     bool isAdmin() const { return admin; }
 };
+
+class Admin : public Client {
+    public:
+        Admin(int socket, const std::string& name, const std::string& key, const std::string pas)
+            : Client(socket, name, key, pas, true) {}
+    
+        void kick(Client& target) {
+            target.send("You have been kicked by admin.");
+            target.disconnect();
+        }
+    };

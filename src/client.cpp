@@ -46,29 +46,40 @@ void Client::kick() {
 }
 
 std::string Client::encrypt(const std::string& text, const std::string& key) {
-    std::string res = text;
+    std::string res;
     int keyLength = key.length();
-    for (size_t i = 0; i < text.length(); i++) {
-        char textC = text[i];
-        char keyC = key[i % keyLength];
-        if (isalpha(textC)) {
-            char reg = islower(textC) ? 'a' : 'A';
-            res[i] = (textC - reg + (keyC - reg) + 26) % 26 + reg;
+    int j = 0; // index for key
+
+    for (char c : text) {
+        if (isalpha(c)) {
+            char base = islower(c) ? 'a' : 'A';
+            char keyC = toupper(key[j % keyLength]) - 'A'; // use uppercase key
+            res += (c - base + keyC) % 26 + base;
+            j++;  // only increment key index if we actually encrypted a letter
+        } else {
+            res += c; // keep punctuation, numbers, spaces unchanged
         }
     }
+
     return res;
 }
 
+
 std::string Client::decrypt(const std::string& text, const std::string& key) {
-    std::string res = text;
+    std::string res;
     int keyLength = key.length();
-    for (size_t i = 0; i < text.length(); i++) {
-        char textC = text[i];
-        char keyC = key[i % keyLength];
-        if (isalpha(textC)) {
-            char reg = islower(textC) ? 'a' : 'A';
-            res[i] = (textC - reg - (keyC - reg) + 26) % 26 + reg;
+    int j = 0;
+
+    for (char c : text) {
+        if (isalpha(c)) {
+            char base = islower(c) ? 'a' : 'A';
+            char keyC = toupper(key[j % keyLength]) - 'A';
+            res += (c - base - keyC + 26) % 26 + base;
+            j++;
+        } else {
+            res += c;
         }
     }
+
     return res;
 }
