@@ -3,15 +3,53 @@
 #include <thread>
 #include <cstring>
 
+std::string Client::encrypt(const std::string& text, const std::string& key) {
+    std::string res = text;
+    int ires = 0;
+    if(text[0] == '/') {
+        for (size_t i = 0, k = 0; i < text.length(), k < 2; i++) {
+            if (text[i] == ' ') {
+                k+=1;
+                ires = i;
+            }
+        }
+    }
+    int keyLength = key.length();
+    for (size_t i = ires; i < text.length(); i++) {
+        char textC = text[i];
+        char keyC = key[i % keyLength];
+        if (isalpha(textC)) {
+            char reg = islower(textC) ? 'a' : 'A';
+            res[i] = (textC - reg + (keyC - reg) + 26) % 26 + reg;
+        }
+    }
+    return res;
+}
+
+std::string Client::decrypt(const std::string& text, const std::string& key) {
+    std::string res = text;
+    int keyLength = key.length();
+    for (size_t i = 0; i < text.length(); i++) {
+        char textC = text[i];
+        char keyC = key[i % keyLength];
+        if (isalpha(textC)) {
+            char reg = islower(textC) ? 'a' : 'A';
+            res[i] = (textC - reg - (keyC - reg) + 26) % 26 + reg;
+        }
+    }
+    return res;
+}
+
 Client::Client(int socket, const std::string& name, const std::string& key, const std::string& pas, bool is_admin)
     : socket(socket), name(name), key(key), pas(pas), admin(is_admin), connect(true) {}
 
 void Client::send(const std::string& mess) const {
-    std::string encrypted = encrypt(mess, key);
+    //td::string encrypted = encrypt(mess, key);
+    //std::cout << "DEBUG (encrypted): " << encrypted << std::endl;
 #ifdef _WIN32
     ::send(socket, encrypted.c_str(), encrypted.size(), 0);
 #else
-    ::send(socket, encrypted.c_str(), encrypted.size(), 0);
+    ::send(socket,  encrypt(mess, key).c_str(),  encrypt(mess, key).size(), 0);
 #endif
 }
 
@@ -45,30 +83,4 @@ void Client::kick() {
     is_kicked = true;
 }
 
-std::string Client::encrypt(const std::string& text, const std::string& key) {
-    std::string res = text;
-    int keyLength = key.length();
-    for (size_t i = 0; i < text.length(); i++) {
-        char textC = text[i];
-        char keyC = key[i % keyLength];
-        if (isalpha(textC)) {
-            char reg = islower(textC) ? 'a' : 'A';
-            res[i] = (textC - reg + (keyC - reg) + 26) % 26 + reg;
-        }
-    }
-    return res;
-}
 
-std::string Client::decrypt(const std::string& text, const std::string& key) {
-    std::string res = text;
-    int keyLength = key.length();
-    for (size_t i = 0; i < text.length(); i++) {
-        char textC = text[i];
-        char keyC = key[i % keyLength];
-        if (isalpha(textC)) {
-            char reg = islower(textC) ? 'a' : 'A';
-            res[i] = (textC - reg - (keyC - reg) + 26) % 26 + reg;
-        }
-    }
-    return res;
-}

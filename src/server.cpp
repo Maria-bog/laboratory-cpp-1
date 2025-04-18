@@ -82,6 +82,7 @@ void Server::handleClient(int client_socket) {
 #endif
             return;
         }
+
         buffer[received] = '\0';
         std::istringstream iss(buffer);
         std::string name, key, pas;
@@ -102,25 +103,36 @@ void Server::handleClient(int client_socket) {
             clients[name] = std::move(client);
         }
 
+        // 🌟 Main loop: just relay raw encrypted messages
         while (true) {
-            std::string message = clients[name]->receive();
-            if (message.empty() || clients[name]->isKicked()) break;
+            char msg_buffer[1024] = {0};
+#ifdef _WIN32
+            int msg_len = recv(client_socket, msg_buffer, sizeof(msg_buffer) - 1, 0);
+#else
+            ssize_t msg_len = recv(client_socket, msg_buffer, sizeof(msg_buffer) - 1, 0);
+#endif
+            if (msg_len <= 0 || clients[name]->isKicked()) break;
 
-            if (message[0] == '/') {
-                processCommand(clients[name].get(), message);
-            } else {
-                auto broadcast = [this, &name, &message]() {
-                    std::lock_guard<std::mutex> lock(mtx);
-                    for (auto& [other_name, other_client] : clients) {
-                        if (other_name != name) {
-                            other_client->send(name + ": " + message);
-                        }
+            std::string raw_message(msg_buffer, msg_len);
+
+            // check if it's a command (unencrypted)
+            if (!raw_message.empty() && raw_message[0] == '/') {
+                processCommand(clients[name].get(), raw_message);
+                continue;
+            }
+
+            // Broadcast raw encrypted message with sender tag
+            {
+                std::lock_guard<std::mutex> lock(mtx);
+                for (auto& [other_name, other_client] : clients) {
+                    if (other_name != name) {
+                        other_client->send(name + ": " + raw_message);
                     }
-                };
-                broadcast();
+                }
             }
         }
     } catch (...) {
+        std::cerr << "[SERVER] Exception in handleClient\n";
     }
 
     std::lock_guard<std::mutex> lock(mtx);
@@ -131,12 +143,14 @@ void Server::handleClient(int client_socket) {
             break;
         }
     }
+
 #ifdef _WIN32
     closesocket(client_socket);
 #else
     close(client_socket);
 #endif
 }
+
 
 void Server::processCommand(Client* sender, const std::string& cmd) {
     std::istringstream iss(cmd);
